@@ -17,7 +17,7 @@ const errorHandler = (err, req, res, next) => {
 
   const status = err.status || err.statusCode || 500;
   const message =
-    status < 500 || isDev ? err.message : 'An unexpected server error occurred.';
+    status < 500 || status === 503 || isDev ? err.message : 'An unexpected server error occurred.';
 
   console.error(`[${new Date().toISOString()}] ${status} ${req.method} ${req.path}:`, err.message);
   if (isDev && err.stack) console.error(err.stack);

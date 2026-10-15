@@ -6,7 +6,7 @@ const getClient = () => {
   if (!genAI) {
     if (!process.env.GEMINI_API_KEY) {
       throw Object.assign(
-        new Error('AI service is not configured. Please contact the administrator.'),
+        new Error('AI service is not configured. Please add your GEMINI_API_KEY to backend/.env to run the analysis.'),
         { status: 503 }
       );
     }
@@ -15,16 +15,29 @@ const getClient = () => {
   return genAI;
 };
 
-const MODEL_NAME = 'gemini-1.5-flash';
+const MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+
+const generateWithFallback = async (prompt) => {
+  const client = getClient();
+  let lastErr;
+  for (const modelName of MODELS) {
+    try {
+      const model = client.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      return result;
+    } catch (err) {
+      console.warn(`Model ${modelName} fallback triggered:`, err.message);
+      lastErr = err;
+    }
+  }
+  throw lastErr;
+};
 
 /**
  * Analyses how well a résumé matches a job description.
  * Returns structured JSON with score, matched/missing skills, etc.
  */
 const analyseResume = async (resumeText, jobDescription) => {
-  const client = getClient();
-  const model = client.getGenerativeModel({ model: MODEL_NAME });
-
   const prompt = `You are an expert recruiter and ATS (Applicant Tracking System) specialist.
 Analyse the following résumé against the job description and return a JSON object (no markdown fences).
 
@@ -47,7 +60,7 @@ Return ONLY valid JSON matching this exact structure:
   "resumeKeywords": [<array of key skills/technologies extracted from résumé>]
 }`;
 
-  const result = await model.generateContent(prompt);
+  const result = await generateWithFallback(prompt);
   const text = result.response.text().trim();
 
   // Strip accidental markdown fences
@@ -79,7 +92,6 @@ Return ONLY valid JSON matching this exact structure:
  */
 const chatAboutResume = async (sessionData, userMessage, history) => {
   const client = getClient();
-  const model = client.getGenerativeModel({ model: MODEL_NAME });
 
   const systemContext = `You are a helpful career coach and résumé expert. 
 You have already analysed a résumé for the following job description:
@@ -102,16 +114,25 @@ Keep responses under 300 words unless more detail is specifically requested.`;
     parts: [{ text: msg.content }],
   }));
 
-  const chat = model.startChat({
-    history: [
-      { role: 'user', parts: [{ text: systemContext }] },
-      { role: 'model', parts: [{ text: 'Understood. I\'m ready to help with questions about this résumé analysis.' }] },
-      ...chatHistory,
-    ],
-  });
+  const chatContents = [
+    { role: 'user', parts: [{ text: systemContext }] },
+    { role: 'model', parts: [{ text: 'Understood. I\'m ready to help with questions about this résumé analysis.' }] },
+    ...chatHistory,
+  ];
 
-  const result = await chat.sendMessage(userMessage);
-  return result.response.text();
+  let lastErr;
+  for (const modelName of MODELS) {
+    try {
+      const model = client.getGenerativeModel({ model: modelName });
+      const chat = model.startChat({ history: chatContents });
+      const result = await chat.sendMessage(userMessage);
+      return result.response.text();
+    } catch (err) {
+      console.warn(`Chat model ${modelName} fallback triggered:`, err.message);
+      lastErr = err;
+    }
+  }
+  throw lastErr;
 };
 
 module.exports = { analyseResume, chatAboutResume };

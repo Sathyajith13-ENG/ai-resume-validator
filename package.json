@@ -1,0 +1,13 @@
+{
+  "name": "resume-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-powered résumé validator monorepo",
+  "scripts": {
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "test": "cd backend && npm test",
+    "build:frontend": "cd frontend && npm run build"
+  }
+}

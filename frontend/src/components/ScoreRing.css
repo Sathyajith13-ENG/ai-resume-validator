@@ -1,0 +1,64 @@
+.score-ring-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.score-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 20px var(--glow, rgba(99,102,241,0.3)));
+}
+
+.score-ring svg {
+  transform: rotate(-90deg);
+}
+
+.score-ring-progress {
+  stroke-dasharray: var(--circumference);
+  stroke-dashoffset: var(--circumference);
+  animation: fill-ring 1.2s cubic-bezier(0.4, 0, 0.2, 1) 0.3s forwards;
+}
+
+@keyframes fill-ring {
+  to { stroke-dashoffset: var(--offset); }
+}
+
+.score-ring-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.score-number {
+  font-size: 2.8rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.score-percent {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-top: -4px;
+  display: none;
+}
+
+.score-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 2px;
+}
+
+.score-caption {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}

@@ -15,7 +15,15 @@ const getClient = () => {
   return genAI;
 };
 
-const MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+const MODELS = [
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-3.1-flash-lite',
+];
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const generateWithFallback = async (prompt) => {
   const client = getClient();
@@ -28,6 +36,7 @@ const generateWithFallback = async (prompt) => {
     } catch (err) {
       console.warn(`Model ${modelName} fallback triggered:`, err.message);
       lastErr = err;
+      await sleep(500);
     }
   }
   throw lastErr;
@@ -130,6 +139,7 @@ Keep responses under 300 words unless more detail is specifically requested.`;
     } catch (err) {
       console.warn(`Chat model ${modelName} fallback triggered:`, err.message);
       lastErr = err;
+      await sleep(500);
     }
   }
   throw lastErr;

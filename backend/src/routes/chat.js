@@ -2,8 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 
 const { chatAboutResume } = require('../services/aiService');
-const AnalysisSession = require('../models/AnalysisSession');
-const mongoose = require('mongoose');
+const { getSession, updateChatHistory } = require('../services/sessionStore');
 
 const router = express.Router();
 
@@ -26,20 +25,8 @@ router.post(
       const { message } = req.body;
       const { sessionId } = req.params;
 
-      // Fail fast if database is not connected
-      if (mongoose.connection.readyState !== 1) {
-        return res.status(503).json({
-          error: 'Database is not connected. Chat session persistence is unavailable.',
-        });
-      }
-
-      // Retrieve session from DB
-      let session = null;
-      try {
-        session = await AnalysisSession.findOne({ sessionId });
-      } catch (dbErr) {
-        console.warn('DB lookup skipped:', dbErr.message);
-      }
+      // Retrieve session from sessionStore (memory or MongoDB)
+      const session = await getSession(sessionId);
 
       if (!session) {
         return res.status(404).json({
@@ -51,21 +38,11 @@ router.post(
       const aiResponse = await chatAboutResume(
         session,
         message,
-        session.chatHistory
+        session.chatHistory || []
       );
 
-      // Persist updated chat history (best-effort)
-      try {
-        session.chatHistory.push({ role: 'user', content: message });
-        session.chatHistory.push({ role: 'assistant', content: aiResponse });
-        // Keep only last 20 messages to limit document size
-        if (session.chatHistory.length > 20) {
-          session.chatHistory = session.chatHistory.slice(-20);
-        }
-        await session.save();
-      } catch (dbErr) {
-        console.warn('Chat history save skipped:', dbErr.message);
-      }
+      // Persist updated chat history in sessionStore
+      await updateChatHistory(session, message, aiResponse);
 
       res.json({ reply: aiResponse });
     } catch (err) {

@@ -5,8 +5,7 @@ const { randomUUID } = require('crypto');
 const upload = require('../middleware/upload');
 const { extractTextFromPDF } = require('../services/pdfService');
 const { analyseResume } = require('../services/aiService');
-const AnalysisSession = require('../models/AnalysisSession');
-const mongoose = require('mongoose');
+const { saveSession, getSession, removeSession } = require('../services/sessionStore');
 
 const router = express.Router();
 
@@ -46,29 +45,22 @@ router.post(
 
       const sessionId = randomUUID();
 
-      // Persist to MongoDB if available (raw résumé text is NOT stored)
-      if (mongoose.connection.readyState === 1) {
-        try {
-          await AnalysisSession.create({
-            sessionId,
-            jobDescription,
-            resumeKeywords: analysisResult.resumeKeywords || [],
-            analysisResult: {
-              overallScore: analysisResult.overallScore,
-              matchedSkills: analysisResult.matchedSkills,
-              missingSkills: analysisResult.missingSkills,
-              strengths: analysisResult.strengths,
-              improvements: analysisResult.improvements,
-              summary: analysisResult.summary,
-              experienceMatch: analysisResult.experienceMatch,
-              educationMatch: analysisResult.educationMatch,
-            },
-          });
-        } catch (dbErr) {
-          // Non-fatal: continue even if DB save fails
-          console.warn('DB save skipped:', dbErr.message);
-        }
-      }
+      // Persist to sessionStore (in-memory + MongoDB if available)
+      await saveSession({
+        sessionId,
+        jobDescription,
+        resumeKeywords: analysisResult.resumeKeywords || [],
+        analysisResult: {
+          overallScore: analysisResult.overallScore,
+          matchedSkills: analysisResult.matchedSkills,
+          missingSkills: analysisResult.missingSkills,
+          strengths: analysisResult.strengths,
+          improvements: analysisResult.improvements,
+          summary: analysisResult.summary,
+          experienceMatch: analysisResult.experienceMatch,
+          educationMatch: analysisResult.educationMatch,
+        },
+      });
 
       // Return the analysis (sessionId enables follow-up chat)
       res.status(200).json({
@@ -84,13 +76,7 @@ router.post(
 // ── GET /api/analysis/:sessionId ──────────────────────────────
 router.get('/:sessionId', async (req, res, next) => {
   try {
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: 'Database is not connected.' });
-    }
-
-    const session = await AnalysisSession.findOne({
-      sessionId: req.params.sessionId,
-    }).select('-__v');
+    const session = await getSession(req.params.sessionId);
 
     if (!session) {
       return res.status(404).json({ error: 'Analysis session not found or has expired.' });
@@ -106,15 +92,9 @@ router.get('/:sessionId', async (req, res, next) => {
 // Allows users to manually remove their session data before the 24-hour TTL
 router.delete('/:sessionId', async (req, res, next) => {
   try {
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: 'Database is not connected.' });
-    }
+    const deleted = await removeSession(req.params.sessionId);
 
-    const result = await AnalysisSession.deleteOne({
-      sessionId: req.params.sessionId,
-    });
-
-    if (result.deletedCount === 0) {
+    if (!deleted) {
       return res.status(404).json({ error: 'Session not found.' });
     }
 
